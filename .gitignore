@@ -1,0 +1,5 @@
+__pycache__
+./output
+./input
+parsed_available_ids.txt
+available_ids_parser.py
