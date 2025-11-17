@@ -1,0 +1,34 @@
+from typing import Iterable
+from itertools import chain
+
+from .ipl import get_ipl_intentions
+from .ide import get_ide_intentions
+
+def get_intentions_from_row(row: tuple[str, str]):
+    file_type = row[0]
+    path = "input/" + row[1].replace("\\", "/")
+    
+    if file_type == "IMG":
+        return
+    
+    if file_type != "IPL" and file_type != "IDE":
+        raise Exception("Unknown format")
+    
+    try:
+        with open(path, "r") as file:
+            text = file.read()
+    except FileNotFoundError as e:
+        print(f"File {e.filename} does not exist")
+        return
+
+    if file_type == "IPL":
+        for intention in get_ipl_intentions(text):
+            yield intention
+    elif file_type == "IDE":
+        for intention in get_ide_intentions(text):
+            yield intention
+    else:
+        raise Exception(f"Unknown format ({file_type})")
+
+def get_all_intentions(gta_rows: Iterable[tuple[str, str]]):
+    return chain(*map(get_intentions_from_row, gta_rows))
