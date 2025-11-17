@@ -14,6 +14,8 @@ from parsing.jsp import get_jsp
 
 from parsing.gta import get_all_intentions
 
+from parsing.meta import get_meta
+
 def get_all_models_paths(base_path):
     for path in pathlib.Path(base_path).rglob("*"):
         if not path.is_file():
@@ -136,6 +138,11 @@ def main():
 
     with open("output/gta3.JSP", "w") as file:
         text = get_jsp(intentions_dict[CreateObject])
+        file.write(text)
+
+    with open("output/meta.xml", "w") as file:
+        all_paths = chain(*grouped_model_paths.values())
+        text = get_meta(all_paths)
         file.write(text)
 
 if __name__ == '__main__':
