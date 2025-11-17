@@ -32,12 +32,8 @@ def copy_file(data: CopyFileData):
         return
     shutil.copyfile(path, f"{data.output_path}/{path.name}")
 
-def main():
-    gta_path = "input/data/gta.dat"
-    with open(gta_path, "r") as file:
-        input = file.read()
-
-    lines = input.split("\n")
+def get_gta_rows(text: str):
+    lines = text.split("\n")
     clean_lines_str = filter(
         lambda x: len(x) != 0,
         map(
@@ -52,23 +48,20 @@ def main():
         )),
         clean_lines_str
     )
+    return gta_rows
 
+def get_intensions_dict(gta_rows: Iterable[tuple[str]]):
     intentions_dict = {a: tuple(b) for a, b in groupby(
         get_all_intentions(gta_rows),
         lambda x: type(x)
     )}
+    return intentions_dict
 
-    model_paths = get_all_models_paths("input/models")
-    grouped_model_paths = {
-        a: tuple(b) for a, b in filter(
-            lambda x: x[0] == '.dff' or x[0] == '.col' or x[0] == '.txd',
-            groupby(model_paths, lambda x: x.suffix)
-        )
-    }
-
-    object_model_to_object_type = {a.object_model: a for a in intentions_dict[CreateObjectType]}
-    object_texture_to_object_type = {a.texture: a for a in intentions_dict[CreateObjectType]}
-
+def get_all_copy_iter(
+    grouped_model_paths: dict[str, Iterable[str]],
+    object_model_to_object_type,
+    object_texture_to_object_type
+):
     dff_iter = map(
         lambda x: CopyFileData(
             f"output/Content/models",
@@ -93,21 +86,49 @@ def main():
         ),
         grouped_model_paths[".txd"]
     )
-
     all_copy_iter = chain(dff_iter, col_iter, txd_iter)
+    return all_copy_iter
 
-    with multiprocessing.Pool() as p:
-        p.map(copy_file, all_copy_iter)
-
+def get_lods(create_object_intentions: Iterable[CreateObject]):
     lods = {
         x[0]: x[1] for x in filter(
             lambda x: x[1] is not None,
             map(
                 lambda x: (x.object_id, x.LOD_id),
-                intentions_dict[CreateObject]
+                create_object_intentions
             )
         )
     }
+    return lods
+
+def main():
+    gta_path = "input/data/gta.dat"
+    with open(gta_path, "r") as file:
+        input = file.read()
+
+    intentions_dict = get_intensions_dict(get_gta_rows(input))
+
+    model_paths = get_all_models_paths("input/models")
+    grouped_model_paths = {
+        a: tuple(b) for a, b in filter(
+            lambda x: x[0] == '.dff' or x[0] == '.col' or x[0] == '.txd',
+            groupby(model_paths, lambda x: x.suffix)
+        )
+    }
+
+    object_model_to_object_type = {a.object_model: a for a in intentions_dict[CreateObjectType]}
+    object_texture_to_object_type = {a.texture: a for a in intentions_dict[CreateObjectType]}
+
+    all_copy_iter = get_all_copy_iter(
+        grouped_model_paths,
+        object_model_to_object_type,
+        object_texture_to_object_type
+    )
+
+    with multiprocessing.Pool() as p:
+        p.map(copy_file, all_copy_iter)
+
+    lods = get_lods(intentions_dict[CreateObject])
 
     with open("output/gta3.JSD", "w") as file:
         text = get_jsd(intentions_dict[CreateObjectType], lods)
