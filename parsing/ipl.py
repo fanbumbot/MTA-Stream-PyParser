@@ -2,7 +2,7 @@ import numpy as np
 
 from .intention.create_object import CreateObject
 
-from .remove_comment import remove_comment
+from .dat import remove_comment
 
 def quaternion_to_euler(w, x, y, z):
     sinr_cosp = 2 * (w * x + y * z)

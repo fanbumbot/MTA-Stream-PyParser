@@ -7,12 +7,13 @@ import multiprocessing
 from parsing.ide import CreateObjectType
 from parsing.ipl import CreateObject
 
-from parsing.remove_comment import remove_comment
+from parsing.gta import get_gta_cleaned_rows
+from parsing.gta import get_gta_intentions
+from parsing.water_dat import get_water_intentions, get_water_cleaned_rows
+from parsing.water_lua import get_water_lua
 
 from parsing.jsd import get_jsd
 from parsing.jsp import get_jsp
-
-from parsing.gta import get_all_intentions
 
 from parsing.meta import get_meta
 
@@ -34,27 +35,9 @@ def copy_file(data: CopyFileData):
         return
     shutil.copyfile(path, f"{data.output_path}/{path.name}")
 
-def get_gta_rows(text: str):
-    lines = text.split("\n")
-    clean_lines_str = filter(
-        lambda x: len(x) != 0,
-        map(
-            lambda x: remove_comment(x).strip(),
-            lines
-        )
-    )
-    gta_rows = map(
-        lambda x: tuple(map(
-            str.strip,
-            x.split(maxsplit = 1)
-        )),
-        clean_lines_str
-    )
-    return gta_rows
-
 def get_intensions_dict(gta_rows: Iterable[tuple[str]]):
     intentions_dict = {a: tuple(b) for a, b in groupby(
-        get_all_intentions(gta_rows),
+        get_gta_intentions(gta_rows),
         lambda x: type(x)
     )}
     return intentions_dict
@@ -105,10 +88,23 @@ def get_lods(create_object_intentions: Iterable[CreateObject]):
 
 def main():
     gta_path = "input/data/gta.dat"
+    water_path = "input/data/water.dat"
+
+    with open(water_path, "r") as file:
+        input = file.read()
+    
+    water_intentions = get_water_intentions(get_water_cleaned_rows(input))
+
+    with open("output/Settings/CWaterData.lua", "w") as file:
+        text = get_water_lua(water_intentions)
+        file.write(text)
+
+
+
     with open(gta_path, "r") as file:
         input = file.read()
 
-    intentions_dict = get_intensions_dict(get_gta_rows(input))
+    intentions_dict = get_intensions_dict(get_gta_cleaned_rows(input))
 
     model_paths = get_all_models_paths("input/models")
     grouped_model_paths = {

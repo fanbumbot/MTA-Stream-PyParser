@@ -1,5 +1,5 @@
 from .intention.create_object_type import CreateObjectType
-from .remove_comment import remove_comment
+from .dat import remove_comment
 
 def get_ide_intentions(text: str):
     lines = filter(lambda x: len(x) != 0, map(lambda x: str.strip(remove_comment(x)), text.split("\n")))

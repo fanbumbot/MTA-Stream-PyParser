@@ -1,10 +1,11 @@
 from typing import Iterable
 from itertools import chain
 
+from .dat import get_dat_cleaned_rows
 from .ipl import get_ipl_intentions
 from .ide import get_ide_intentions
 
-def get_intentions_from_row(row: tuple[str, str]):
+def get_gta_intentions_from_row(row: tuple[str, str]):
     file_type = row[0]
     path = "input/" + row[1].replace("\\", "/")
     
@@ -30,5 +31,15 @@ def get_intentions_from_row(row: tuple[str, str]):
     else:
         raise Exception(f"Unknown format ({file_type})")
 
-def get_all_intentions(gta_rows: Iterable[tuple[str, str]]):
-    return chain(*map(get_intentions_from_row, gta_rows))
+def get_gta_intentions(gta_rows: Iterable[tuple[str, str]]):
+    return chain(*map(get_gta_intentions_from_row, gta_rows))
+
+def get_gta_cleaned_rows(text: str):
+    cleaned_rows = map(
+        lambda x: tuple(map(
+            str.strip,
+            x.split(maxsplit = 1)
+        )),
+        get_dat_cleaned_rows(text)
+    )
+    return cleaned_rows
