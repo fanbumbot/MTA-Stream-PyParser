@@ -19,6 +19,9 @@ from parsing.jsp import get_jsp
 
 from parsing.meta import get_meta
 
+from get_required_files_and_intentions import get_required_files_and_intentions
+from check_fullness import check_fullness
+
 def get_paths_from_gta_dat(input):
     for row in get_gta_cleaned_rows(input):
         if row[0] == "IMG":
@@ -27,7 +30,7 @@ def get_paths_from_gta_dat(input):
             raise Exception("Unknown format of file")
         yield pathlib.Path("input/" + row[1].replace("\\", "/"))
 
-def get_all_models_paths(base_path):
+def get_all_files(base_path):
     for path in pathlib.Path(base_path).rglob("*"):
         if not path.is_file():
             continue
@@ -45,7 +48,8 @@ def get_intentions_from_file(path: pathlib.Path):
         intentions = get_ide_intentions(text)
     elif suffix == "ipl":
         intentions = get_ipl_intentions(text)
-    return set(intentions)
+    intentions = set(intentions)
+    return intentions
 
 def copy_file(data: tuple[str, str]):
     shutil.copyfile(data[0], data[1])
@@ -82,26 +86,6 @@ def get_intensions_dict(gta_rows: Iterable[tuple[str]]):
     )}
     return intentions_dict
 
-def get_required_files_and_intentions(
-    ipl_intentions: set[CreateObject],
-    ide_intentions: set[CreateObjectType],
-    all_files: Iterable[pathlib.Path]
-):
-    all_dffs = {a for a in map(lambda x: x.object_model, ipl_intentions)}
-    required_ide_intentions = set(filter(lambda x: x.object_model in all_dffs, ide_intentions))
-    
-    required_dffs = map(lambda x: x.object_model, required_ide_intentions)
-    required_txds = {a for a in map(lambda x: x.texture, required_ide_intentions)}
-
-    required_files = set(filter(
-        lambda x: (
-            x.stem in required_dffs or
-            x.stem in required_txds
-        ),
-        all_files
-    ))
-    return ipl_intentions, required_ide_intentions, required_files
-
 def get_lods(create_object_intentions: Iterable[CreateObject]):
     lods = {
         x[0]: x[1] for x in filter(
@@ -130,75 +114,105 @@ def load_IDEs(paths: Iterable[pathlib.Path]):
         )))
     return ide_intentions
 
+use_log = True
+log_path = "log.txt"
+
+def send_message(text: str):
+    global use_log, log_path
+
+    if use_log:
+        with open(log_path, "a") as file:
+            file.write(text+"\n")
+    print(text)
+
 def main():
+    import os
+    if os.path.exists(log_path):
+        os.remove(log_path)
+
     gta_path = "input/data/gta.dat"
     water_path = "input/data/water.dat"
 
     try:
         # ------ water.dat
-        print("Reading water.dat")
+        send_message("Reading water.dat")
         with open(water_path, "r") as file:
             input = file.read()
         
         water_intentions = get_water_intentions(get_water_cleaned_rows(input))
 
         # ------ water.lua
-        print("Creating water.lua")
+        send_message("Creating water.lua")
         with open("output/Settings/CWaterData.lua", "w") as file:
             text = get_water_lua(water_intentions)
             file.write(text)
 
         # ------ gta.dat
-        print("Reading gta.dat")
+        send_message("Reading gta.dat")
         with open(gta_path, "r") as file:
             input = file.read()
 
-        paths = get_paths_from_gta_dat(input)
-        grouped_input_paths = {ext: {path for path in paths} for ext, paths in groupby(paths, lambda x: x.suffix[1:].lower())}
-        
-        print("Loading IPLs")
-        ipl_intentions = load_IPLs(grouped_input_paths["ipl"])
+        gta_paths = set(get_paths_from_gta_dat(input))
+        grouped_gta_paths: dict[str, set[pathlib.Path]] = dict()
+        for path in gta_paths:
+            suffix = path.suffix[1:].lower()
+            if suffix not in grouped_gta_paths:
+                grouped_gta_paths[suffix] = set()
+            grouped_gta_paths[suffix].add(path)
 
-        print("Loading IDEs")
-        ide_intentions = load_IDEs(grouped_input_paths["ide"])
+        # ------ DFFs, TXDs, COLs        
+        send_message("Loading IPLs")
+        ipl_intentions = load_IPLs(grouped_gta_paths["ipl"])
 
-        # ------ DFFs, TXDs, COLs
-        all_files = get_all_models_paths("input/models")
+        send_message("Loading IDEs")
+        ide_intentions = load_IDEs(grouped_gta_paths["ide"])
+
+        import_paths = set(get_all_files("input/models"))
+        dat_paths = get_all_files("input/data")
+
+        for message in check_fullness(
+            dat_paths,
+            gta_paths,
+            ipl_intentions,
+            ide_intentions,
+            import_paths
+        ):
+            send_message(message.text)
 
         required_ipl_intentions, required_ide_intentions, required_files = (
             get_required_files_and_intentions(
                 ipl_intentions,
                 ide_intentions,
-                all_files
+                import_paths
             )
         )
 
         # ------ JSD
-        print("Creating gta3.JSD")
+        send_message("Creating gta3.JSD")
         lods = get_lods(required_ipl_intentions)
         with open("output/gta3.JSD", "w") as file:
             text = get_jsd(required_ide_intentions, lods)
             file.write(text)
 
         # ------ JSP
-        print("Creating gta3.JSP")
+        send_message("Creating gta3.JSP")
         with open("output/gta3.JSP", "w") as file:
             text = get_jsp(required_ipl_intentions)
             file.write(text)
 
         # ------ meta.xml
-        print("Creating meta.xml")
+        send_message("Creating meta.xml")
         with open("output/meta.xml", "w") as file:
             text = get_meta(required_files)
             file.write(text)
 
-        print("Copying models, textures, coll")
+        send_message("Copying models, textures, coll")
         copy_files_to_output(required_files)
     except Exception as e:
-        print("Something is wrong")
-        print(e)
+        send_message("Something is wrong")
+        send_message(str(e))
     else:
-        print("Successful end")
+        send_message("Successful end")
 
 if __name__ == '__main__':
     main()

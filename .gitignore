@@ -4,3 +4,4 @@ input
 parsed_available_ids.txt
 available_ids_parser.py
 .vscode
+log.txt
