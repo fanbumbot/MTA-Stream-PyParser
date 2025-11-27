@@ -21,6 +21,9 @@ from parsing.meta import get_meta
 
 from differences.differences import get_diffs, get_required_by_diffs, Differences
 
+from get_required_files_and_intentions import get_required_files_and_intentions
+from check_fullness import check_fullness
+
 def get_paths_from_gta_dat(input):
     for row in get_gta_cleaned_rows(input):
         if row[0] == "IMG":
@@ -29,6 +32,7 @@ def get_paths_from_gta_dat(input):
             raise Exception("Unknown format of file")
         yield pathlib.Path("input/" + row[1].replace("\\", "/"))
 
+def get_all_files(base_path):
 def get_all_files(base_path):
     for path in pathlib.Path(base_path).rglob("*"):
         if not path.is_file():
@@ -47,6 +51,8 @@ def get_intentions_from_file(path: pathlib.Path):
         intentions = get_ide_intentions(text)
     elif suffix == "ipl":
         intentions = get_ipl_intentions(text)
+    intentions = set(intentions)
+    return intentions
     intentions = set(intentions)
     return intentions
 
@@ -151,11 +157,16 @@ def main():
     if os.path.exists(log_path):
         os.remove(log_path)
 
+    import os
+    if os.path.exists(log_path):
+        os.remove(log_path)
+
     gta_path = "input/data/gta.dat"
     water_path = "input/data/water.dat"
 
     try:
         # ------ water.dat
+        send_message("Reading water.dat")
         send_message("Reading water.dat")
         with open(water_path, "r") as file:
             input = file.read()
@@ -164,15 +175,24 @@ def main():
 
         # ------ water.lua
         send_message("Creating water.lua")
+        send_message("Creating water.lua")
         with open("output/Settings/CWaterData.lua", "w") as file:
             text = get_water_lua(water_intentions)
             file.write(text)
 
         # ------ gta.dat
         send_message("Reading gta.dat")
+        send_message("Reading gta.dat")
         with open(gta_path, "r") as file:
             input = file.read()
 
+        gta_paths = set(get_paths_from_gta_dat(input))
+        grouped_gta_paths: dict[str, set[pathlib.Path]] = dict()
+        for path in gta_paths:
+            suffix = path.suffix[1:].lower()
+            if suffix not in grouped_gta_paths:
+                grouped_gta_paths[suffix] = set()
+            grouped_gta_paths[suffix].add(path)
         gta_paths = set(get_paths_from_gta_dat(input))
         grouped_gta_paths: dict[str, set[pathlib.Path]] = dict()
         for path in gta_paths:
@@ -212,6 +232,7 @@ def main():
 
         # ------ JSD
         send_message("Creating gta3.JSD")
+        send_message("Creating gta3.JSD")
         lods = get_lods(required_ipl_intentions)
         with open("output/gta3.JSD", "w") as file:
             text = get_jsd(required_ide_intentions, lods)
@@ -219,16 +240,19 @@ def main():
 
         # ------ JSP
         send_message("Creating gta3.JSP")
+        send_message("Creating gta3.JSP")
         with open("output/gta3.JSP", "w") as file:
             text = get_jsp(required_ipl_intentions)
             file.write(text)
 
         # ------ meta.xml
         send_message("Creating meta.xml")
+        send_message("Creating meta.xml")
         with open("output/meta.xml", "w") as file:
             text = get_meta(required_files)
             file.write(text)
 
+        send_message("Copying models, textures, coll")
         send_message("Copying models, textures, coll")
         copy_files_to_output(required_files)
     except Exception as e:
@@ -236,6 +260,7 @@ def main():
         send_message(str(e))
         raise e
     else:
+        send_message("Successful end")
         send_message("Successful end")
 
 if __name__ == '__main__':
