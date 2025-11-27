@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Union
 from itertools import chain, groupby
 import pathlib
 import shutil
@@ -11,11 +11,21 @@ from parsing.gta import get_gta_cleaned_rows
 from parsing.gta import get_gta_intentions
 from parsing.water_dat import get_water_intentions, get_water_cleaned_rows
 from parsing.water_lua import get_water_lua
+from parsing.ipl import get_ipl_intentions
+from parsing.ide import get_ide_intentions
 
 from parsing.jsd import get_jsd
 from parsing.jsp import get_jsp
 
 from parsing.meta import get_meta
+
+def get_paths_from_gta_dat(input):
+    for row in get_gta_cleaned_rows(input):
+        if row[0] == "IMG":
+            continue
+        if row[0] != "IPL" and row[0] != "IDE":
+            raise Exception("Unknown format of file")
+        yield pathlib.Path("input/" + row[1].replace("\\", "/"))
 
 def get_all_models_paths(base_path):
     for path in pathlib.Path(base_path).rglob("*"):
@@ -23,17 +33,47 @@ def get_all_models_paths(base_path):
             continue
         yield path
 
-class CopyFileData:
-    def __init__(self, output_path: str, all_objects: dict, path: pathlib.Path):
-        self.output_path = output_path
-        self.all_objects = all_objects
-        self.path = path
+def get_intentions_from_file(path: pathlib.Path):
+    suffix = path.suffix[1:].lower()
+    if suffix != "ide" and suffix != "ipl":
+        raise Exception(f"Unknown format '{suffix}' of file '{path}'")
+    
+    with open(path, 'r') as file:
+        text = file.read()
 
-def copy_file(data: CopyFileData):
-    path = data.path
-    if path.stem not in data.all_objects:
-        return
-    shutil.copyfile(path, f"{data.output_path}/{path.name}")
+    if suffix == "ide":
+        intentions = get_ide_intentions(text)
+    elif suffix == "ipl":
+        intentions = get_ipl_intentions(text)
+    return set(intentions)
+
+def copy_file(data: tuple[str, str]):
+    shutil.copyfile(data[0], data[1])
+
+def copy_files_to_output(
+    paths: Iterable[pathlib.Path]
+):
+    def get_pairs(input_path: pathlib.Path):
+        return (input_path, get_output_path(input_path))
+
+    def get_output_path(input_path: pathlib.Path):
+        input_path = input_path.relative_to("input/models")
+        input_path = input_path.relative_to(input_path.parents[-2])
+        suffix = input_path.suffix[1:].lower()
+        if suffix == "dff":
+            output_dir = "output/Content/models"
+        elif suffix == "txd":
+            output_dir = "output/Content/textures"
+        elif suffix == "col":
+            output_dir = "output/Content/coll"
+        else:
+            Exception(f"Unknown format '{suffix}' of file '{input_path}'")
+        return f"{output_dir}/{str(input_path).replace("\\", "/")}"
+
+    copy_iter = map(get_pairs, paths)
+    
+    with multiprocessing.Pool() as p:
+        p.map(copy_file, copy_iter)
 
 def get_intensions_dict(gta_rows: Iterable[tuple[str]]):
     intentions_dict = {a: tuple(b) for a, b in groupby(
@@ -42,37 +82,25 @@ def get_intensions_dict(gta_rows: Iterable[tuple[str]]):
     )}
     return intentions_dict
 
-def get_all_copy_iter(
-    grouped_model_paths: dict[str, Iterable[str]],
-    object_model_to_object_type,
-    object_texture_to_object_type
+def get_required_files_and_intentions(
+    ipl_intentions: set[CreateObject],
+    ide_intentions: set[CreateObjectType],
+    all_files: Iterable[pathlib.Path]
 ):
-    dff_iter = map(
-        lambda x: CopyFileData(
-            f"output/Content/models",
-            object_model_to_object_type,
-            x
+    all_dffs = {a for a in map(lambda x: x.object_model, ipl_intentions)}
+    required_ide_intentions = set(filter(lambda x: x.object_model in all_dffs, ide_intentions))
+    
+    required_dffs = map(lambda x: x.object_model, required_ide_intentions)
+    required_txds = {a for a in map(lambda x: x.texture, required_ide_intentions)}
+
+    required_files = set(filter(
+        lambda x: (
+            x.stem in required_dffs or
+            x.stem in required_txds
         ),
-        grouped_model_paths[".dff"]
-    )
-    col_iter = map(
-        lambda x: CopyFileData(
-            f"output/Content/coll",
-            object_model_to_object_type,
-            x
-        ),
-        grouped_model_paths[".col"]
-    )
-    txd_iter = map(
-        lambda x: CopyFileData(
-            f"output/Content/textures",
-            object_texture_to_object_type,
-            x
-        ),
-        grouped_model_paths[".txd"]
-    )
-    all_copy_iter = chain(dff_iter, col_iter, txd_iter)
-    return all_copy_iter
+        all_files
+    ))
+    return ipl_intentions, required_ide_intentions, required_files
 
 def get_lods(create_object_intentions: Iterable[CreateObject]):
     lods = {
@@ -86,60 +114,91 @@ def get_lods(create_object_intentions: Iterable[CreateObject]):
     }
     return lods
 
+def load_IPLs(paths: Iterable[pathlib.Path]):
+    with multiprocessing.Pool() as p:
+        ipl_intentions = set(chain(*p.map(
+            get_intentions_from_file,
+            paths
+        )))
+    return ipl_intentions
+
+def load_IDEs(paths: Iterable[pathlib.Path]):
+    with multiprocessing.Pool() as p:
+        ide_intentions = set(chain(*p.map(
+            get_intentions_from_file,
+            paths
+        )))
+    return ide_intentions
+
 def main():
     gta_path = "input/data/gta.dat"
     water_path = "input/data/water.dat"
 
-    with open(water_path, "r") as file:
-        input = file.read()
-    
-    water_intentions = get_water_intentions(get_water_cleaned_rows(input))
+    try:
+        # ------ water.dat
+        print("Reading water.dat")
+        with open(water_path, "r") as file:
+            input = file.read()
+        
+        water_intentions = get_water_intentions(get_water_cleaned_rows(input))
 
-    with open("output/Settings/CWaterData.lua", "w") as file:
-        text = get_water_lua(water_intentions)
-        file.write(text)
+        # ------ water.lua
+        print("Creating water.lua")
+        with open("output/Settings/CWaterData.lua", "w") as file:
+            text = get_water_lua(water_intentions)
+            file.write(text)
 
+        # ------ gta.dat
+        print("Reading gta.dat")
+        with open(gta_path, "r") as file:
+            input = file.read()
 
+        paths = get_paths_from_gta_dat(input)
+        grouped_input_paths = {ext: {path for path in paths} for ext, paths in groupby(paths, lambda x: x.suffix[1:].lower())}
+        
+        print("Loading IPLs")
+        ipl_intentions = load_IPLs(grouped_input_paths["ipl"])
 
-    with open(gta_path, "r") as file:
-        input = file.read()
+        print("Loading IDEs")
+        ide_intentions = load_IDEs(grouped_input_paths["ide"])
 
-    intentions_dict = get_intensions_dict(get_gta_cleaned_rows(input))
+        # ------ DFFs, TXDs, COLs
+        all_files = get_all_models_paths("input/models")
 
-    model_paths = get_all_models_paths("input/models")
-    grouped_model_paths = {
-        a: tuple(b) for a, b in filter(
-            lambda x: x[0] == '.dff' or x[0] == '.col' or x[0] == '.txd',
-            groupby(model_paths, lambda x: x.suffix)
+        required_ipl_intentions, required_ide_intentions, required_files = (
+            get_required_files_and_intentions(
+                ipl_intentions,
+                ide_intentions,
+                all_files
+            )
         )
-    }
 
-    object_model_to_object_type = {a.object_model: a for a in intentions_dict[CreateObjectType]}
-    object_texture_to_object_type = {a.texture: a for a in intentions_dict[CreateObjectType]}
+        # ------ JSD
+        print("Creating gta3.JSD")
+        lods = get_lods(required_ipl_intentions)
+        with open("output/gta3.JSD", "w") as file:
+            text = get_jsd(required_ide_intentions, lods)
+            file.write(text)
 
-    all_copy_iter = get_all_copy_iter(
-        grouped_model_paths,
-        object_model_to_object_type,
-        object_texture_to_object_type
-    )
+        # ------ JSP
+        print("Creating gta3.JSP")
+        with open("output/gta3.JSP", "w") as file:
+            text = get_jsp(required_ipl_intentions)
+            file.write(text)
 
-    with multiprocessing.Pool() as p:
-        p.map(copy_file, all_copy_iter)
+        # ------ meta.xml
+        print("Creating meta.xml")
+        with open("output/meta.xml", "w") as file:
+            text = get_meta(required_files)
+            file.write(text)
 
-    lods = get_lods(intentions_dict[CreateObject])
-
-    with open("output/gta3.JSD", "w") as file:
-        text = get_jsd(intentions_dict[CreateObjectType], lods)
-        file.write(text)
-
-    with open("output/gta3.JSP", "w") as file:
-        text = get_jsp(intentions_dict[CreateObject])
-        file.write(text)
-
-    with open("output/meta.xml", "w") as file:
-        all_paths = chain(*grouped_model_paths.values())
-        text = get_meta(all_paths)
-        file.write(text)
+        print("Copying models, textures, coll")
+        copy_files_to_output(required_files)
+    except Exception as e:
+        print("Something is wrong")
+        print(e)
+    else:
+        print("Successful end")
 
 if __name__ == '__main__':
     main()
