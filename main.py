@@ -21,9 +21,6 @@ from parsing.meta import get_meta
 
 from differences.differences import get_diffs, get_required_by_diffs, Differences
 
-from get_required_files_and_intentions import get_required_files_and_intentions
-from check_fullness import check_fullness
-
 def get_paths_from_gta_dat(input):
     for row in get_gta_cleaned_rows(input):
         if row[0] == "IMG":
@@ -32,7 +29,6 @@ def get_paths_from_gta_dat(input):
             raise Exception("Unknown format of file")
         yield pathlib.Path("input/" + row[1].replace("\\", "/"))
 
-def get_all_files(base_path):
 def get_all_files(base_path):
     for path in pathlib.Path(base_path).rglob("*"):
         if not path.is_file():
