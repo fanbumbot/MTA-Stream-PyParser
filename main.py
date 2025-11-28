@@ -19,8 +19,7 @@ from parsing.jsp import get_jsp
 
 from parsing.meta import get_meta
 
-from get_required_files_and_intentions import get_required_files_and_intentions
-from check_fullness import check_fullness
+from differences.differences import get_diffs, get_required_by_diffs, Differences
 
 def get_paths_from_gta_dat(input):
     for row in get_gta_cleaned_rows(input):
@@ -125,6 +124,28 @@ def send_message(text: str):
             file.write(text+"\n")
     print(text)
 
+def get_info_about_differences(diffs: Differences):
+    for path in diffs.data_import_diffs.only_in_dat:
+        yield f"diffs: Path {path} does not exist"
+
+    for path in diffs.data_import_diffs.only_in_gta:
+        yield f"diffs: Path {path} is not necessary"
+
+    for intention in diffs.intentions_diffs.only_in_ipl:
+        yield f"diffs: Model {intention.object_model} does not exist in IDEs"
+
+    for intention in diffs.intentions_diffs.only_in_ide:
+        yield f"diffs: Model {intention.object_model} is not necessary in IDEs"
+
+    for model in diffs.models_import_diffs.only_in_dffs:
+        yield f"diffs: DFF {model} does not exist in files"
+
+    for texture in diffs.models_import_diffs.only_in_txds:
+        yield f"diffs: TXD {texture} does not exist in files"
+
+    for file in diffs.models_import_diffs.only_in_files:
+        yield f"diffs: File {file} is not necessary"
+
 def main():
     import os
     if os.path.exists(log_path):
@@ -170,21 +191,23 @@ def main():
         import_paths = set(get_all_files("input/models"))
         dat_paths = get_all_files("input/data")
 
-        for message in check_fullness(
+        diffs = get_diffs(
             dat_paths,
             gta_paths,
             ipl_intentions,
             ide_intentions,
             import_paths
-        ):
-            send_message(message.text)
+        )
+
+        for message in get_info_about_differences(diffs):
+            send_message(message)
+
+        required_ipl_intentions = diffs.intentions_diffs.ipl_in_both
+        required_ide_intentions = diffs.intentions_diffs.ide_in_both
+        required_files = {x[1] for x in diffs.models_import_diffs.in_both}
 
         required_ipl_intentions, required_ide_intentions, required_files = (
-            get_required_files_and_intentions(
-                ipl_intentions,
-                ide_intentions,
-                import_paths
-            )
+            get_required_by_diffs(diffs)
         )
 
         # ------ JSD
@@ -211,6 +234,7 @@ def main():
     except Exception as e:
         send_message("Something is wrong")
         send_message(str(e))
+        raise e
     else:
         send_message("Successful end")
 
