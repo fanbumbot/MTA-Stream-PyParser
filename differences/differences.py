@@ -69,25 +69,27 @@ def get_models_import_diffs(
     required_ide_intentions = set(required_ide_intentions)
     import_paths = set(import_paths)
 
-    only_in_dffs = {x.object_model for x in required_ide_intentions}
-    only_in_txds = {x.texture for x in required_ide_intentions}
-    only_in_cols = {x.object_model for x in required_ide_intentions}
+    # Object requires txd, dff and col files
+
+    only_in_dffs = {x.object_model.lower() for x in required_ide_intentions}
+    only_in_txds = {x.texture.lower() for x in required_ide_intentions}
+    only_in_cols = {x.object_model.lower() for x in required_ide_intentions}
     only_in_files = set()
-    in_both: set[tuple[str, pathlib.Path]] = set()
+    in_all: set[tuple[str, pathlib.Path]] = set()
 
     for file in import_paths:
-        name = file.stem
+        name = file.stem.lower()
         suffix = file.suffix[1:].lower()
 
         if suffix == "dff" and name in only_in_dffs:
+            in_all.add((name, file))
             only_in_dffs.remove(name)
-            in_both.add((name, file))
         elif suffix == "col" and name in only_in_cols:
+            in_all.add((name, file))
             only_in_cols.remove(name)
-            in_both.add((name, file))
         elif suffix == "txd" and name in only_in_txds:
+            in_all.add((name, file))
             only_in_txds.remove(name)
-            in_both.add((name, file))
         else:
             only_in_files.add(file)
 
@@ -96,7 +98,7 @@ def get_models_import_diffs(
         only_in_txds,
         only_in_cols,
         only_in_files,
-        in_both
+        in_all
     )
     return diffs
 
@@ -132,32 +134,53 @@ def get_diffs(
 def get_required_by_diffs(
     diffs: Differences
 ):
-    ipls: dict[str, set[CreateObject]] = dict()
-    for intention in diffs.intentions_diffs.ipl_in_both:
-        model = intention.object_model
-        if model not in ipls:
-            ipls[model] = set()
-        ipls[model].add(intention)
-    ides_by_dff = {x.object_model: x for x in diffs.intentions_diffs.ide_in_both}
-    ides_by_txd = {x.texture: x for x in diffs.intentions_diffs.ide_in_both}
-
-    required_ipls = set()
+    required_ipls = set(diffs.intentions_diffs.ipl_in_both)
     required_ides = set()
-    required_files = set()
 
-    for name, file in diffs.models_import_diffs.in_both:
-        if name in ides_by_dff:
-            model = name
-        elif name in ides_by_txd:
-            model = ides_by_txd[name].object_model
+    files_by_suffix: dict[str, dict[str, pathlib.Path]] = dict()
+    transform_files: set[tuple[pathlib.Path, str]] = set()
+
+    for name, file in diffs.models_import_diffs.in_all:
+        suffix = file.suffix[1:].lower()
+        if suffix not in files_by_suffix:
+            files_by_suffix[suffix] = dict()
+        files_by_suffix[suffix][name] = file
+
+    for intention in diffs.intentions_diffs.ide_in_both:
+        line_dff = intention.object_model
+        line_txd = intention.texture
+        line_col = intention.object_col
+
+        uni_dff = line_dff.lower()
+        uni_txd = line_txd.lower()
+        uni_col = line_col.lower()
+
+        if uni_dff in files_by_suffix["dff"]:
+            file_dff = files_by_suffix["dff"][uni_dff]
+            transform_files.add((file_dff, uni_dff))
+
+        if uni_txd in files_by_suffix["txd"]:
+            file_txd = files_by_suffix["txd"][uni_txd]
+            transform_files.add((file_txd, uni_txd))
+
+        if uni_col in files_by_suffix["col"]:
+            file_col = files_by_suffix["col"][uni_col]
+            transform_files.add((file_col, uni_col))
         else:
-            continue
-        if model not in ipls:
-            continue
+            uni_col = None
+        
+        new_intention = CreateObjectType(
+            intention.object_id,
+            uni_dff,
+            uni_col,
+            uni_txd,
+            intention.draw_distance,
+            intention.flag,
+            intention.time_on,
+            intention.tine_off
+        )
 
-        required_ipls = required_ipls | ipls[model]
-        required_ides.add(ides_by_dff[model])
-        required_files.add(file)
+        required_ides.add(new_intention)
 
-    return required_ipls, required_ides, required_files
+    return required_ipls, required_ides, transform_files
 

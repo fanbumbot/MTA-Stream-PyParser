@@ -34,13 +34,13 @@ class ModelsImportDifferences:
         only_in_txds: set[str],
         only_id_cols: set[str],
         only_in_files: set[pathlib.Path],
-        in_both: set[tuple[str, pathlib.Path]]
+        in_all: set[tuple[str, pathlib.Path]]
     ):
         self.only_in_dffs = only_in_dffs
         self.only_in_txds = only_in_txds
         self.only_in_cols = only_id_cols
         self.only_in_files = only_in_files
-        self.in_both = in_both
+        self.in_all = in_all
 
 class RequiredIntentionsAndFiles:
     def __init__(

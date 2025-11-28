@@ -21,6 +21,7 @@ def parse_ide_object(text: str):
     return CreateObjectType(
         int(strings[0]),
         strings[1],
+        strings[1],
         strings[2],
         float(strings[3]),
         int(strings[4]),

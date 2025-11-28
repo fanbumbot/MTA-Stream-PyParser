@@ -11,6 +11,7 @@ def is_culled(culled: int):
 
 def get_jsd_row(intention: CreateObjectType, lods: dict[int, int]):
     model = intention.object_model
+    collision = "nil" if intention.object_col is None else intention.object_col
     texture = intention.texture
     draw_distance = intention.draw_distance
     flag = "true" if get_flag(intention.flag) else "nil"
@@ -20,9 +21,9 @@ def get_jsd_row(intention: CreateObjectType, lods: dict[int, int]):
     time_off = intention.tine_off
 
     if time_on and time_off:
-        output = f"{model},{model},{texture},{model},{draw_distance},{flag},{culled},{lod},{time_on},{time_off}"
+        output = f"{model},{model},{texture},{collision},{draw_distance},{flag},{culled},{lod},{time_on},{time_off}"
     else:
-        output = f"{model},{model},{texture},{model},{draw_distance},{flag},{culled},{lod}"
+        output = f"{model},{model},{texture},{collision},{draw_distance},{flag},{culled},{lod}"
     return output
 
 def get_jsd(intentions: Iterable[CreateObjectType], lods: dict[int, int]):

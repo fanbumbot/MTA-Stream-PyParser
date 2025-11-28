@@ -54,26 +54,24 @@ def copy_file(data: tuple[str, str]):
     shutil.copyfile(data[0], data[1])
 
 def copy_files_to_output(
-    paths: Iterable[pathlib.Path]
+    transform_files: Iterable[tuple[pathlib.Path, str]]
 ):
-    def get_pairs(input_path: pathlib.Path):
-        return (input_path, get_output_path(input_path))
+    def get_pairs(file_transformation: tuple[pathlib.Path, str]):
+        return (file_transformation[0], get_output_path(file_transformation))
 
-    def get_output_path(input_path: pathlib.Path):
-        input_path = input_path.relative_to("input/models")
-        input_path = input_path.relative_to(input_path.parents[-2])
-        suffix = input_path.suffix[1:].lower()
-        if suffix == "dff":
-            output_dir = "output/Content/models"
-        elif suffix == "txd":
-            output_dir = "output/Content/textures"
-        elif suffix == "col":
-            output_dir = "output/Content/coll"
-        else:
-            Exception(f"Unknown format '{suffix}' of file '{input_path}'")
-        return f"{output_dir}/{str(input_path).replace("\\", "/")}"
+    def get_output_path(file_transformation: tuple[pathlib.Path, str]):
+        main_dir_by_suffix = {
+            "dff": "models",
+            "txd": "textures",
+            "col": "coll"
+        }
+        suffix = file_transformation[0].suffix[1:].lower()
+        main_dir = pathlib.Path("output/Content").joinpath(pathlib.Path(main_dir_by_suffix[suffix]))
+        relative_path = main_dir.joinpath(pathlib.Path(f"{file_transformation[1]}.{suffix}")).as_posix()
 
-    copy_iter = map(get_pairs, paths)
+        return f"{str(relative_path).replace("\\", "/")}"
+
+    copy_iter = map(get_pairs, transform_files)
     
     with multiprocessing.Pool() as p:
         p.map(copy_file, copy_iter)
@@ -214,7 +212,7 @@ def main():
         for message in get_info_about_differences(diffs):
             send_message(message, to_print = False)
 
-        required_ipl_intentions, required_ide_intentions, required_files = (
+        required_ipl_intentions, required_ide_intentions, transform_files = (
             get_required_by_diffs(diffs)
         )
 
@@ -234,11 +232,11 @@ def main():
         # ------ meta.xml
         send_message("Creating meta.xml")
         with open("output/meta.xml", "w") as file:
-            text = get_meta(required_files)
+            text = get_meta(transform_files)
             file.write(text)
 
         send_message("Copying models, textures, cols")
-        copy_files_to_output(required_files)
+        copy_files_to_output(transform_files)
     except Exception as e:
         send_message("Something is wrong")
         send_message(str(e))

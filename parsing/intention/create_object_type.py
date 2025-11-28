@@ -7,6 +7,7 @@ from .intention import Intention
 class CreateObjectType(Intention):
     object_id: int
     object_model: str
+    object_col: Union[str, None]
     texture: str
     draw_distance: float
     flag: int
