@@ -1,9 +1,8 @@
 from typing import Iterable
-from itertools import chain
 import pathlib
 
 def get_meta_client_file_row(path: pathlib.Path):
-    relative_path = pathlib.Path("Content").joinpath(path.relative_to("input")).as_posix()
+    relative_path = pathlib.Path("Content").joinpath(path.relative_to(path.parents[-3])).as_posix()
     row = f'<file src = "{relative_path}" type="client" />'
     return row
 

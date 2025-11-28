@@ -116,13 +116,14 @@ def load_IDEs(paths: Iterable[pathlib.Path]):
 use_log = True
 log_path = "log.txt"
 
-def send_message(text: str):
+def send_message(text: str, to_print = True, to_log = True):
     global use_log, log_path
 
-    if use_log:
+    if use_log and to_log:
         with open(log_path, "a") as file:
             file.write(text+"\n")
-    print(text)
+    if to_print:
+        print(text)
 
 def get_info_about_differences(diffs: Differences):
     for path in diffs.data_import_diffs.only_in_dat:
@@ -211,11 +212,7 @@ def main():
         )
 
         for message in get_info_about_differences(diffs):
-            send_message(message)
-
-        required_ipl_intentions = diffs.intentions_diffs.ipl_in_both
-        required_ide_intentions = diffs.intentions_diffs.ide_in_both
-        required_files = {x[1] for x in diffs.models_import_diffs.in_both}
+            send_message(message, to_print = False)
 
         required_ipl_intentions, required_ide_intentions, required_files = (
             get_required_by_diffs(diffs)
