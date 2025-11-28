@@ -71,16 +71,21 @@ def get_models_import_diffs(
 
     only_in_dffs = {x.object_model for x in required_ide_intentions}
     only_in_txds = {x.texture for x in required_ide_intentions}
+    only_in_cols = {x.object_model for x in required_ide_intentions}
     only_in_files = set()
     in_both: set[tuple[str, pathlib.Path]] = set()
 
     for file in import_paths:
         name = file.stem
+        suffix = file.suffix[1:].lower()
 
-        if name in only_in_dffs:
+        if suffix == "dff" and name in only_in_dffs:
             only_in_dffs.remove(name)
             in_both.add((name, file))
-        elif name in only_in_txds:
+        elif suffix == "col" and name in only_in_cols:
+            only_in_cols.remove(name)
+            in_both.add((name, file))
+        elif suffix == "txd" and name in only_in_txds:
             only_in_txds.remove(name)
             in_both.add((name, file))
         else:
@@ -89,6 +94,7 @@ def get_models_import_diffs(
     diffs = ModelsImportDifferences(
         only_in_dffs,
         only_in_txds,
+        only_in_cols,
         only_in_files,
         in_both
     )

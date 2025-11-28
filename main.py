@@ -237,7 +237,7 @@ def main():
             text = get_meta(required_files)
             file.write(text)
 
-        send_message("Copying models, textures, coll")
+        send_message("Copying models, textures, cols")
         copy_files_to_output(required_files)
     except Exception as e:
         send_message("Something is wrong")
