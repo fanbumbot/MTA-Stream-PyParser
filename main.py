@@ -49,8 +49,6 @@ def get_intentions_from_file(path: pathlib.Path):
         intentions = get_ipl_intentions(text)
     intentions = set(intentions)
     return intentions
-    intentions = set(intentions)
-    return intentions
 
 def copy_file(data: tuple[str, str]):
     shutil.copyfile(data[0], data[1])
@@ -163,7 +161,6 @@ def main():
     try:
         # ------ water.dat
         send_message("Reading water.dat")
-        send_message("Reading water.dat")
         with open(water_path, "r") as file:
             input = file.read()
         
@@ -171,13 +168,11 @@ def main():
 
         # ------ water.lua
         send_message("Creating water.lua")
-        send_message("Creating water.lua")
         with open("output/Settings/CWaterData.lua", "w") as file:
             text = get_water_lua(water_intentions)
             file.write(text)
 
         # ------ gta.dat
-        send_message("Reading gta.dat")
         send_message("Reading gta.dat")
         with open(gta_path, "r") as file:
             input = file.read()
@@ -228,7 +223,6 @@ def main():
 
         # ------ JSD
         send_message("Creating gta3.JSD")
-        send_message("Creating gta3.JSD")
         lods = get_lods(required_ipl_intentions)
         with open("output/gta3.JSD", "w") as file:
             text = get_jsd(required_ide_intentions, lods)
@@ -236,19 +230,16 @@ def main():
 
         # ------ JSP
         send_message("Creating gta3.JSP")
-        send_message("Creating gta3.JSP")
         with open("output/gta3.JSP", "w") as file:
             text = get_jsp(required_ipl_intentions)
             file.write(text)
 
         # ------ meta.xml
         send_message("Creating meta.xml")
-        send_message("Creating meta.xml")
         with open("output/meta.xml", "w") as file:
             text = get_meta(required_files)
             file.write(text)
 
-        send_message("Copying models, textures, coll")
         send_message("Copying models, textures, coll")
         copy_files_to_output(required_files)
     except Exception as e:
@@ -256,7 +247,6 @@ def main():
         send_message(str(e))
         raise e
     else:
-        send_message("Successful end")
         send_message("Successful end")
 
 if __name__ == '__main__':
