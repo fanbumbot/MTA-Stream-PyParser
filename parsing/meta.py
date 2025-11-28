@@ -11,6 +11,8 @@ def get_meta(paths: Iterable[pathlib.Path]):
         '<meta>',
         '\t<info type="script" name="MTA-Stream-Map" author="Unknown" description="MTA-Stream-Map-Conversion" version="3" Streamer="1" />',
         '',
+        '\t<script src="Settings/CWaterData.lua" type="client" />',
+        '',
         *map(
             lambda x: "\t" + get_meta_client_file_row(x),
             paths
